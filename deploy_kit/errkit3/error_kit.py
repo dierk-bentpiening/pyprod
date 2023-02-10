@@ -8,6 +8,8 @@ import os
 import typing
 import json
 import platform
+import logging
+import psutil
 from datetime import datetime
 from concurrent import futures
 from pathlib import Path
@@ -53,7 +55,7 @@ class ProductionErrorKit:
                         "app_pid": os.getpid(),
                         "traceback_sourcename": traceback.tb_frame.f_code.co_filename,
                         "traceback_lineno": traceback.tb_lineno,
-                        "traceback_locals":{ 
+                        "traceback_locals":{
                                             "__name__": traceback.tb_frame.f_locals['__name__'],
                                             "__doc__": traceback.tb_frame.f_locals['__doc__'],
                                             "__package__": traceback.tb_frame.f_locals['__package__'],
@@ -63,8 +65,20 @@ class ProductionErrorKit:
                                 "node_name": platform.node(),
                                 "platform": platform.platform(),
                                 "architecture": platform.processor(),
+                                "os": platform.system(),
+                                "os_release": platform.release(),
+                                "os_version": platform.version(),
+                                "memory_total": int(round(psutil.virtual_memory().total / (1024. **3))),
+                                "memory_used": round(psutil.virtual_memory()[3]/ (1024 **3), 2)
+                        },
+                        "python_details:": {
+                                "python_version": platform.python_version(),
+                                "python_scm_revision": platform.python_revision(),
+                                "python_scm_branch": platform.python_branch(),
+                                "python_build": platform.python_build(),
+                                "python_implementation": platform.python_implementation(),
+                                "python_compiler": platform.python_compiler(),
                             },
-                        "Python_Details:" {},
                         "value": str(value),
                         "type": f"{type}",
                     },
@@ -81,7 +95,7 @@ class ProductionErrorKit:
                 try:
                     _current_error_file_state = json.loads(_existing_error_file)
                 except json.decoder.JSONDecodeError as ex:
-                        print(f"Fatal error occured in ProductionErrorModul!\n  Could not decode json error object\n    Message: {ex.msg}\n    Line: {ex.lineno}\n    Pos: {ex.pos}\n    Column: {ex.colno}")
+                        logging.error(f"Fatal error occured in ProductionErrorModul!\n  Could not decode json error object\n    Message: {ex.msg}\n    Line: {ex.lineno}\n    Pos: {ex.pos}\n    Column: {ex.colno}")
                         sys.stdout.flush()
                         sys.exit("Fatal Error")
                 _current_error_file_state["Exceptions"].append(
@@ -90,7 +104,7 @@ class ProductionErrorKit:
                     with open(_error_filename, "w") as file:
                         file.write(json.dumps(_current_error_file_state))
                 except FileNotFound:
-                    print(f'Fatal Error at handling existing error file!')
+                    logging.error(f('Error Occured! Stacktrace has been saved in Traceback-File {_error_filename}'))
             else:
                 try:
                     with open(_error_filename, "a+") as file:
@@ -107,3 +121,4 @@ class ProductionErrorKit:
             sys.excepthook = self.__handle_exception
         except Exception as ex:
             print("Fatal Error, could not activate production_exception_mode")
+
